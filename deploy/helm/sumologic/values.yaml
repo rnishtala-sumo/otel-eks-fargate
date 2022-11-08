@@ -1,0 +1,2309 @@
+## Sumo Logic Kubernetes Collection configuration file
+## All the comments start with two or more # characters
+
+nameOverride: ""
+fullnameOverride: "sumologic"
+
+sumologic:
+
+  ## If enabled, a pre-install hook will create Collector and Sources in Sumo Logic
+  setupEnabled: true
+
+  ## If enabled, a pre-delete hook will destroy Collector in Sumo Logic
+  cleanupEnabled: false
+
+  ## If enabled, accessId and accessKey will be sourced from Secret Name given
+  ## Be sure to include at least the following env variables in your secret
+  ## (1) SUMOLOGIC_ACCESSID, (2) SUMOLOGIC_ACCESSKEY
+  # envFromSecret: sumo-api-secret
+
+  ## Sumo access ID
+  accessId: ""
+
+  ## Sumo access key
+  accessKey: ""
+
+  ## Sumo API endpoint; Leave blank for automatic endpoint discovery and redirection
+  ## ref: https://help.sumologic.com/docs/api/getting-started#sumo-logic-endpoints-by-deployment-and-firewall-security
+  endpoint: "https://long-api.sumologic.net/api/v1/"
+
+  ## proxy urls
+  httpProxy: ""
+  httpsProxy: ""
+  ## Exclude Kubernetes internal traffic from proxy
+  noProxy: kubernetes.default.svc
+
+  ## Collector name
+  # collectorName: ""
+
+  ## Cluster name: Note spaces are not allowed and will be replaced with dashes.
+  clusterName: "kubernetes"
+
+  ## Configuration of Kubernetes for Terraform client
+  ## https://www.terraform.io/docs/providers/kubernetes/index.html#argument-reference
+  ## All double quotes should be escaped here regarding Terraform syntax
+  cluster:
+    host: "https://kubernetes.default.svc"
+    # username:
+    # password:
+    # insecure:
+    # client_certificate:
+    # client_key:
+    cluster_ca_certificate: "${file(\"/var/run/secrets/kubernetes.io/serviceaccount/ca.crt\")}"
+    # config_path:
+    # config_context:
+    # config_context_auth_info:
+    # config_context_cluster:
+    token: "${file(\"/var/run/secrets/kubernetes.io/serviceaccount/token\")}"
+    # exec:
+    #   api_version:
+    #   command:
+    #   args: []
+    #   env: {}
+
+  ## If you set it to false, it would set EXCLUDE_NAMESPACE=<release-namespace>
+  ## and not add the fluentD/fluent-bit logs and Prometheus remotestorage metrics.
+  collectionMonitoring: true
+
+  ## Optionally specify an array of pullSecrets.
+  ## They will be added to serviceaccount that is used for Sumo Logic's
+  ## deployments and statefulsets.
+
+  ## Secrets must be manually created in the namespace.
+  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+  ##
+  # pullSecrets:
+  #   - name: myRegistryKeySecretName
+
+  ## Add custom labels to the following sumologic resources(fluentd sts, setup job, otelcol deployment)
+  podLabels: {}
+
+  ## Add custom annotations to the following sumologic resources(fluentd sts, setup job, otelcol deployment)
+  podAnnotations: {}
+
+  ## Add custom annotations to sumologic serviceAccounts
+  serviceAccount:
+    annotations: {}
+
+  ## creation of Security Context Constraints in Openshift
+  scc:
+    create: false
+
+  setup:
+    ## uncomment to force collection installation (disables k8s version verification)
+    # force: true
+    job:
+      image:
+        repository: public.ecr.aws/sumologic/kubernetes-setup
+        tag: 3.4.0
+        pullPolicy: IfNotPresent
+      ## Optionally specify an array of pullSecrets.
+      ## They will be added to serviceaccount that is used for Sumo Logic's
+      ## setup job.
+      ## Secrets must be manually created in the namespace.
+      ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+      ##
+      # pullSecrets:
+      #   - name: myRegistryKeySecretName
+      resources:
+        limits:
+          memory: 64Mi
+          cpu: 200m
+        requests:
+          memory: 64Mi
+          cpu: 200m
+      nodeSelector: {}
+      ## Add custom labels only to setup job pod
+
+      ## Node tolerations for server scheduling to nodes with taints
+      ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+      ##
+      tolerations: []
+      # - key: null
+      #   operator: Exists
+      #   effect: "NoSchedule"
+
+      ## Affinity and anti-affinity
+      ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+      ##
+      affinity: {}
+
+      podLabels: {}
+      ## Add custom annotations only to setup job pod
+      podAnnotations: {}
+
+    ## uncomment for the debug mode (disables the automatic run of the setup.sh script)
+    # debug: false
+
+    monitors:
+      ## If enabled, a pre-install hook will create k8s monitors in Sumo Logic
+      enabled: true
+
+      ## The installed monitors default status: enabled/disabled
+      monitorStatus: enabled
+
+      ## A list of emails to send notifications from monitors
+      notificationEmails: []
+
+    dashboards:
+      ## If enabled, a pre-install hook will install k8s dashboards in Sumo Logic
+      enabled: true
+
+  collector:
+    ## Configuration of additional collector fields
+    ## https://help.sumologic.com/docs/manage/fields/#http-source-fields
+    fields: {}
+
+    ## Configuration of http sources
+    ## See docs/Terraform.md for more information
+    ## name: source name visible in sumologic platform
+    ## config-name: This is mostly for backward compatibility
+    sources:
+      metrics:
+        default:
+          name: (default-metrics)
+          config-name: endpoint-metrics
+        apiserver:
+          name: apiserver-metrics
+          config-name: endpoint-metrics-apiserver
+        controller:
+          name: kube-controller-manager-metrics
+          config-name: endpoint-metrics-kube-controller-manager
+        scheduler:
+          name: kube-scheduler-metrics
+          config-name: endpoint-metrics-kube-scheduler
+        state:
+          name: kube-state-metrics
+          config-name: endpoint-metrics-kube-state
+        kubelet:
+          name: kubelet-metrics
+          config-name: endpoint-metrics-kubelet
+        node:
+          name: node-exporter-metrics
+          config-name: endpoint-metrics-node-exporter
+        control-plane:
+          name: control-plane-metrics
+      logs:
+        default:
+          name: logs
+          config-name: endpoint-logs
+
+          ## Properties can be used to extend default settings, such as processing rules, fields etc
+          # properties:
+          #  filters:
+          #    - name: "Test Exclude Debug"
+          #      filter_type: "Exclude"
+          #      regexp: ".*DEBUG.*"
+      events:
+        default:
+          name: events
+          config-name: endpoint-events
+      traces:
+        default:
+          name: traces
+          config-name: endpoint-traces
+          properties:
+            content_type: Zipkin
+
+  ### Logs configuration
+  ## Set the enabled flag to false for disabling logs ingestion altogether.
+  logs:
+    enabled: true
+    metadata:
+      ## Set provider service (either fluentd or otelcol).
+      provider: otelcol
+
+    collector:
+      otelcol:
+        enabled: false
+
+      ## Allow running otel and Fluent-Bit side by side. This will result in duplicated
+      ## logs being ingested. Only enabled this if you're **certain** it's what you want.
+      allowSideBySide: false
+
+    multiline:
+      enabled: true
+      first_line_regex: "^\\[?\\d{4}-\\d{1,2}-\\d{1,2}.\\d{2}:\\d{2}:\\d{2}"
+
+    container:
+      enabled: true
+
+    systemd:
+      enabled: true
+      # systemd units to collect logs from
+      # units:
+      #   - docker.service
+
+    ## Fields to be created at Sumo Logic to ensure logs are tagged with
+    ## relevant metadata.
+    ## https://help.sumologic.com/docs/manage/fields/#manage-fields
+    fields:
+      - cluster
+      - container
+      - deployment
+      - host
+      - namespace
+      - node
+      - pod
+      - service
+
+  ### Metrics configuration
+  ## Set the enabled flag to false for disabling metrics ingestion altogether.
+  metrics:
+    enabled: true
+    metadata:
+      ## Set metadata provider service (either fluentd or otelcol).
+      provider: otelcol
+
+    ### Enable a load balancing proxy for Prometheus remote writes.
+    ## Prometheus remote write uses a single persistent HTTP connection per target,
+    ## which interacts poorly with TCP load balancing with iptables that K8s Services do.
+    ## Use a real HTTP load balancer for this instead.
+    ## This is an advanced feature, enable only if you're experiencing performance
+    ## issues with metrics metadata enrichment.
+    remoteWriteProxy:
+      enabled: false
+      config:
+        ## Increase this if you've increased samples_per_send in Prometheus to prevent nginx
+        ## from spilling proxied request bodies to disk
+        clientBodyBufferSize: "64k"
+        ## This feature autodetects how much CPU is assigned to the nginx instance and sets
+        ## the right amount of workers based on that. Disable to use the default of 8 workers.
+        workerCountAutotune: true
+        ## Nginx listen port
+        port: 8080
+      replicaCount: 1
+      image:
+        repository: public.ecr.aws/sumologic/nginx-unprivileged
+        tag: 1.23.1-alpine
+        pullPolicy: IfNotPresent
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      livenessProbe:
+        initialDelaySeconds: 30
+        periodSeconds: 10
+        timeoutSeconds: 5
+        successThreshold: 1
+        failureThreshold: 6
+      readinessProbe:
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 3
+        successThreshold: 1
+        failureThreshold: 3
+
+      securityContext: {}
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      ## Option to define priorityClassName to assign a priority class to pods.
+      priorityClassName:
+
+      ## Add custom labels only to metrics sts pods
+      podLabels: {}
+      ## Add custom annotations only to metrics sts pods
+      podAnnotations: {}
+
+  ### Traces configuration
+  ## Set the enabled flag to true to enable traces ingestion.
+  traces:
+    enabled: true
+    ## How many spans per request should be send to receiver
+    spans_per_request: 100
+
+## Configure metrics-server
+## ref: https://github.com/bitnami/charts/blob/master/bitnami/metrics-server/values.yaml
+metrics-server:
+  ## Set the enabled flag to true for enabling metrics-server.
+  ## This is required before enabling fluentd autoscaling unless you have an existing metrics-server in the cluster.
+  enabled: false
+  apiService:
+    create: true
+  extraArgs:
+    kubelet-insecure-tls: true
+    kubelet-preferred-address-types: InternalIP,ExternalIP,Hostname
+  ## Optionally specify image options for metrics-server
+  # image:
+    ## Optionally specify an array of imagePullSecrets.
+    ## Secrets must be manually created in the namespace.
+    ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+    ##
+    # pullSecrets:
+    #   - imagepullsecret
+
+## Configure optional OpenTelemetry Collector in Agent mode
+otelagent:
+  enabled: true
+  daemonset:
+    nodeSelector: {}
+    tolerations: []
+    resources:
+      limits:
+        memory: 1Gi
+        cpu: 500m
+      requests:
+        memory: 1Gi
+        cpu: 500m
+    ## Option to define priorityClassName to assign a priority class to pods.
+    ## If not set then temaplates/priorityclass.yaml is used.
+    priorityClassName:
+    ## Add custom labels only to otelagent daemonset.
+    podLabels: {}
+    ## Add custom annotations only to otelagent daemonset.
+    podAnnotations: {}
+    image:
+      repository: "public.ecr.aws/sumologic/sumologic-otel-collector"
+      tag: "0.54.0-sumo-0"
+      pullPolicy: IfNotPresent
+
+    ## Extra Environment Values - allows yaml definitions
+    # extraEnvVars:
+    #   - name: VALUE_FROM_SECRET
+    #     valueFrom:
+    #       secretKeyRef:
+    #         name: secret_name
+    #         key: secret_key
+
+    # extraVolumes:
+    #   - name: es-certs
+    #     secret:
+    #       defaultMode: 420
+    #       secretName: es-certs
+    # extraVolumeMounts:
+    #   - name: es-certs
+    #     mountPath: /certs
+    #     readOnly: true
+
+  config:
+    receivers:
+      jaeger:
+        protocols:
+          thrift_compact:
+            endpoint: "0.0.0.0:6831"
+          thrift_binary:
+            endpoint: "0.0.0.0:6832"
+          grpc:
+            endpoint: "0.0.0.0:14250"
+          thrift_http:
+            endpoint: "0.0.0.0:14268"
+      opencensus:
+        endpoint: "0.0.0.0:55678"
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
+      otlp/deprecated:
+        protocols:
+          http:
+            endpoint: "0.0.0.0:55681"
+      zipkin:
+        endpoint: "0.0.0.0:9411"
+    processors:
+      ## Tags spans with K8S metadata, basing on the context IP
+      k8s_tagger:
+        ## When true, only IP is assigned and passed (so it could be tagged on another collector)
+        passthrough: false
+        ## When true, additional fields, such as serviceName are being also extracted
+        owner_lookup_enabled: true
+        ## Extracted fields and assigned names
+        extract:
+          metadata:
+            ## extract the following well-known metadata fields
+            - containerId
+            - containerName
+            - daemonSetName
+            - deploymentName
+            - hostName
+            - namespace
+            - nodeName
+            - podId
+            - podName
+            - replicaSetName
+            - serviceName
+            - statefulSetName
+          annotations:
+            - tag_name: "k8s.pod.annotation.%s"
+              key: "*"
+          namespace_labels:
+            - tag_name: "k8s.namespace.label.%s"
+              key: "*"
+          labels:
+            - tag_name: "k8s.pod.label.%s"
+              key: "*"
+
+      ## The memory_limiter processor is used to prevent out of memory situations on the collector.
+      memory_limiter:
+        ## check_interval is the time between measurements of memory usage for the
+        ## purposes of avoiding going over the limits. Defaults to zero, so no
+        ## checks will be performed. Values below 1 second are not recommended since
+        ## it can result in unnecessary CPU consumption.
+        check_interval: 5s
+
+        ## Maximum amount of memory, in MiB, targeted to be allocated by the process heap.
+        ## Note that typically the total memory usage of process will be about 50MiB higher
+        ## than this value.
+        limit_mib: 1900
+
+      ## The batch processor accepts spans and places them into batches grouped by node and resource
+      batch:
+        ## Number of spans after which a batch will be sent regardless of time
+        send_batch_size: 256
+        ## Time duration after which a batch will be sent regardless of size
+        timeout: 5s
+    extensions:
+      health_check: {}
+      memory_ballast:
+        ## Memory Ballast size should be max 1/3 to 1/2 of memory.
+        size_mib: 250
+      pprof: {}
+    exporters:
+      otlphttp/traces:
+        endpoint: 'http://exporters.otlptraces.endpoint.replace:4318'
+      otlphttp/metrics:
+        endpoint: 'http://exporters.otlpmetrics.endpoint.replace:4318'
+    service:
+      extensions: [health_check, memory_ballast, pprof]
+      pipelines:
+        traces:
+          receivers: [jaeger, opencensus, otlp, otlp/deprecated, zipkin]
+          processors: [memory_limiter, k8s_tagger, batch]
+          exporters: [otlphttp/traces]
+        metrics:
+          receivers: [otlp, otlp/deprecated]
+          processors: [memory_limiter, k8s_tagger, batch]
+          exporters: [otlphttp/metrics]
+
+## Configure otelcol
+otelcol:
+  sourceMetadata:
+    ## Set the _sourceName metadata field in Sumo Logic.
+    sourceName: "%{k8s.namespace.name}.%{k8s.pod.pod_name}.%{k8s.container.name}"
+    ## Set the _sourceCategory metadata field in Sumo Logic.
+    sourceCategory: "%{k8s.namespace.name}/%{k8s.pod.pod_name}"
+    ## Set the prefix, for _sourceCategory metadata.
+    sourceCategoryPrefix: "kubernetes/"
+    ## Used to replace - with another character.
+    sourceCategoryReplaceDash: "/"
+
+    ## A regular expression for containers.
+    ## Matching containers will be excluded from Sumo. The logs will still be sent to FluentD.
+    excludeContainerRegex: ""
+    ## A regular expression for hosts.
+    ## Matching hosts will be excluded from Sumo. The logs will still be sent to FluentD.
+    excludeHostRegex: ""
+    ## A regular expression for namespaces.
+    ## Matching namespaces will be excluded from Sumo. The logs will still be sent to FluentD.
+    excludeNamespaceRegex: ""
+    ## A regular expression for pods.
+    ## Matching pods will be excluded from Sumo. The logs will still be sent to FluentD.
+    excludePodRegex: ""
+
+  deployment:
+    nodeSelector: {}
+    tolerations: []
+    replicas: 1
+    resources:
+      limits:
+        memory: 384Mi
+        cpu: 200m
+      requests:
+        memory: 384Mi
+        cpu: 200m
+    ## Option to define priorityClassName to assign a priority class to pods.
+    priorityClassName:
+
+    ## Add custom labels only to otelcol deployment.
+    podLabels: {}
+    ## Add custom annotations only to otelcol deployment.
+    podAnnotations: {}
+    image:
+      repository: "public.ecr.aws/sumologic/sumologic-otel-collector"
+      tag: "0.54.0-sumo-0"
+      pullPolicy: IfNotPresent
+
+    ## Extra Environment Values - allows yaml definitions
+    # extraEnvVars:
+    #   - name: VALUE_FROM_SECRET
+    #     valueFrom:
+    #       secretKeyRef:
+    #         name: secret_name
+    #         key: secret_key
+
+    # extraVolumes:
+    #   - name: es-certs
+    #     secret:
+    #       defaultMode: 420
+    #       secretName: es-certs
+    # extraVolumeMounts:
+    #   - name: es-certs
+    #     mountPath: /certs
+    #     readOnly: true
+
+  ## To enable collecting all logs, set to false
+  logLevelFilter: false
+  ## Metrics from Collector
+  metrics:
+    enabled: true
+  ## Collector configuration
+  config:
+    receivers:
+      jaeger:
+        protocols:
+          thrift_compact:
+            endpoint: "0.0.0.0:6831"
+          thrift_binary:
+            endpoint: "0.0.0.0:6832"
+          grpc:
+            endpoint: "0.0.0.0:14250"
+          thrift_http:
+            endpoint: "0.0.0.0:14268"
+      opencensus:
+        endpoint: "0.0.0.0:55678"
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
+      otlp/deprecated:
+        protocols:
+          http:
+            endpoint: "0.0.0.0:55681"
+      zipkin:
+        endpoint: "0.0.0.0:9411"
+    processors:
+      ## Source processor adds Sumo Logic related metadata
+      source:
+        annotation_prefix: "k8s.pod.annotation."
+        collector: "processors.source.collector.replace"
+        exclude:
+          k8s.container.name: "processors.source.exclude_container_regex.replace"
+          k8s.host.name: "processors.source.exclude_host_regex.replace"
+          k8s.namespace.name: "processors.source.exclude_namespace_regex.replace"
+          k8s.pod.name: "processors.source.exclude_pod_regex.replace"
+        pod_key: "k8s.pod.name"
+        pod_name_key: "k8s.pod.pod_name"
+        pod_template_hash_key: "k8s.pod.label.pod-template-hash"
+        source_category: "processors.source.category.replace"
+        source_category_prefix: "processors.source.category_prefix.replace"
+        source_category_replace_dash: "processors.source.category_replace_dash.replace"
+        source_host: "%{k8s.pod.hostname}"
+        source_name: "processors.source.name.replace"
+
+      ## Resource processor sets the associted cluster attribute
+      resource:
+        attributes:
+          - key: k8s.cluster.name
+            value: "processors.resource.cluster.replace"
+            action: upsert
+
+      ## The memory_limiter processor is used to prevent out of memory situations on the collector.
+      memory_limiter:
+        ## check_interval is the time between measurements of memory usage for the
+        ## purposes of avoiding going over the limits. Defaults to zero, so no
+        ## checks will be performed. Values below 1 second are not recommended since
+        ## it can result in unnecessary CPU consumption.
+        check_interval: 5s
+
+        ## Maximum amount of memory, in MiB, targeted to be allocated by the process heap.
+        ## Note that typically the total memory usage of process will be about 50MiB higher
+        ## than this value.
+        limit_mib: 1900
+
+      ## Smart cascading filtering rules with preset limits.
+      cascading_filter:
+        ## Max number of traces for which decisions are kept in memory
+        num_traces: 200000
+
+      ## The batch processor accepts spans and places them into batches grouped by node and resource
+      batch:
+        ## Number of spans after which a batch will be sent regardless of time
+        send_batch_size: 256
+        ## Never more than this many spans are being sent in a batch
+        send_batch_max_size: 512
+        ## Time duration after which a batch will be sent regardless of size
+        timeout: 5s
+
+      ## Add System metadata - needed for Sumologic exporter source_host
+      resourcedetection:
+        detectors: [system]
+        timeout: 10s
+        override: false
+
+    extensions:
+      health_check: {}
+      memory_ballast:
+        ## Memory Ballast size should be max 1/3 to 1/2 of memory.
+        size_mib: 683
+      pprof: {}
+    exporters:
+      ## Following generates verbose logs with span content, useful to verify what
+      ## metadata is being tagged. To enable, uncomment and add "logging" to exporters below.
+      ## There are two levels that could be used: `debug` and `info` with the former
+      ## being much more verbose and including (sampled) spans content
+      # logging:
+      #   loglevel: debug
+      otlphttp:
+        traces_endpoint: ${SUMO_ENDPOINT_DEFAULT_TRACES_SOURCE}
+        compression: gzip
+      sumologic:
+        endpoint: ${SUMO_ENDPOINT_DEFAULT_METRICS_SOURCE}
+        ## Compression encoding format, either empty string (""), gzip or deflate (default gzip).
+        ## Empty string means no compression
+        compress_encoding: gzip
+        ## Max HTTP request body size in bytes before compression (if applied). By default 1_048_576 (1MB) is used.
+        max_request_body_size: 1_048_576  # 1MB
+        ## Format to use when sending logs to Sumo. (default json) (possible values: json, text)
+        log_format: text
+        ## Format of the metrics to be sent (default is prometheus) (possible values: carbon2, prometheus)
+        ## carbon2 and graphite are going to be supported soon.
+        metric_format: prometheus
+        ## Desired source category. Useful if you want to override the source category configured for the source.
+        source_category: "exporters.sumologic.source_category.replace"
+        ## Desired source name. Useful if you want to override the source name configured for the source.
+        source_name: "exporters.sumologic.source_name.replace"
+        ## Desired host name. Useful if you want to override the source host configured for the source.
+        source_host: "%{k8s.pod.hostname}"
+        ## Timeout for every attempt to send data to Sumo Logic backend. Maximum connection timeout is 55s.
+        timeout: 5s
+        retry_on_failure:
+          enabled: true
+          ## Time to wait after the first failure before retrying
+          initial_interval: 5s
+          ## Upper bound on backoff
+          max_interval: 30s
+          ## Maximum amount of time spent trying to send a batch
+          max_elapsed_time: 120s
+        sending_queue:
+          enabled: false
+          ## Number of consumers that dequeue batches
+          num_consumers: 10
+          ## Maximum number of batches kept in memory before data
+          ## User should calculate this as num_seconds * requests_per_second where:
+          ## num_seconds is the number of seconds to buffer in case of a backend outage
+          ## requests_per_second is the average number of requests per seconds.
+          queue_size: 5000
+    service:
+      extensions: [health_check, memory_ballast, pprof]
+      pipelines:
+        traces:
+          receivers: [jaeger, opencensus, otlp, otlp/deprecated, zipkin]
+          processors: [memory_limiter, source, resource, cascading_filter, batch]
+          exporters: [otlphttp]
+        metrics:
+          receivers: [otlp, otlp/deprecated]
+          processors: [memory_limiter, resourcedetection, source, resource, batch]
+          exporters: [sumologic]
+
+metadata:
+  ## Configure image for Opentelemetry Collector (for logs and metrics)
+  image:
+    repository: public.ecr.aws/sumologic/sumologic-otel-collector
+    tag: 0.57.2-sumo-1
+    pullPolicy: IfNotPresent
+
+  securityContext:
+    ## ToDo: Verify following comment
+    ## The group ID of all processes in the statefulset containers. By default this needs to be otelcol(999).
+    fsGroup: 999
+
+  ## Add custom labels to all otelcol sts pods(logs and metrics)
+  podLabels: {}
+
+  ## Add custom annotations to all otelcol sts pods(logs and metrics)
+  podAnnotations: {}
+
+  ## Add custom labels to all otelcol svc (logs and metrics)
+  serviceLabels: {}
+
+  ## Configure persistence for Opentelemetry Collector
+  persistence:
+    enabled: true
+    # storageClass: "-"
+    accessMode: ReadWriteMany
+    size: 10Gi
+    ## Add custom labels to all otelcol statefulset PVC (logs and metrics)
+    pvcLabels: {}
+
+  ## Configure metrics pipeline.
+  ## This section affects only otelcol provider.
+  metrics:
+    enabled: true
+    logLevel: info
+    config:
+      receivers:
+        ## Configuration for Telegraf Receiver
+        ## ref: https://github.com/SumoLogic/sumologic-otel-collector/tree/main/pkg/receiver/telegrafreceiver
+        telegraf:
+          agent_config: |
+            [agent]
+              interval = "30s"
+              flush_interval = "30s"
+              omit_hostname = true
+
+            [[inputs.http_listener_v2]]
+              # wait longer than prometheus
+              read_timeout = "30s"
+              write_timeout = "30s"
+              service_address = ":9888"
+              data_format = "prometheusremotewrite"
+              path_tag = true
+              paths = [
+                "/prometheus.metrics",
+                "/prometheus.metrics.apiserver",
+                "/prometheus.metrics.applications.activemq",
+                "/prometheus.metrics.applications.apache",
+                "/prometheus.metrics.applications.cassandra",
+                "/prometheus.metrics.applications.couchbase",
+                "/prometheus.metrics.applications.elasticsearch",
+                "/prometheus.metrics.applications.haproxy",
+                "/prometheus.metrics.applications.jmx",
+                "/prometheus.metrics.applications.kafka",
+                "/prometheus.metrics.applications.memcached",
+                "/prometheus.metrics.applications.mongodb",
+                "/prometheus.metrics.applications.mysql",
+                "/prometheus.metrics.applications.nginx",
+                "/prometheus.metrics.applications.nginx-ingress",
+                "/prometheus.metrics.applications.postgresql",
+                "/prometheus.metrics.applications.rabbitmq",
+                "/prometheus.metrics.applications.redis",
+                "/prometheus.metrics.applications.sqlserver",
+                "/prometheus.metrics.applications.squidproxy",
+                "/prometheus.metrics.applications.tomcat",
+                "/prometheus.metrics.applications.varnish",
+                "/prometheus.metrics.container",
+                "/prometheus.metrics.controller-manager",
+                "/prometheus.metrics.control-plane.coredns",
+                "/prometheus.metrics.control-plane.kube-etcd",
+                "/prometheus.metrics.kubelet",
+                "/prometheus.metrics.node",
+                "/prometheus.metrics.operator.rule",
+                "/prometheus.metrics.scheduler",
+                "/prometheus.metrics.state"
+              ]
+      extensions:
+        health_check: {}
+        ## Configuration for File Storage extension
+        ## ref: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/release/v0.37.x/extension/storage/filestorage
+        file_storage:
+          directory: /var/lib/storage/otc
+          timeout: 10s
+          compaction:
+            on_start: true
+            on_rebound: true
+            # Can't be /tmp yet, see https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/13449
+            directory: /var/lib/storage/otc
+        pprof: {}
+      exporters:
+        ## Configuration for Sumo Logic Exporter
+        ## ref: https://github.com/SumoLogic/sumologic-otel-collector/blob/main/pkg/exporter/sumologicexporter
+        sumologic/default:
+          metric_format: prometheus
+          endpoint: ${SUMO_ENDPOINT_DEFAULT_METRICS_SOURCE}
+          ## Configuration for sending queue
+          ## ref: https://github.com/open-telemetry/opentelemetry-collector/tree/release/v0.37.x/exporter/exporterhelper#configuration
+          sending_queue:
+            enabled: true
+            persistent_storage_enabled: '{{ .Values.metadata.persistence.enabled }}'
+            num_consumers: 10
+            ## setting queue_size a high number, so we always use maximum space of the storage
+            ## minimal alert non-triggering queue size (if only one exporter is being used): 10GB/16MB = 640
+            queue_size: 10_000
+          max_request_body_size: 16_777_216  # 16 MB before compression
+          ## set timeout to 30s due to big requests
+          timeout: 30s
+        sumologic/apiserver:
+          metric_format: prometheus
+          endpoint: ${SUMO_ENDPOINT_APISERVER_METRICS_SOURCE}
+          sending_queue:
+            enabled: true
+            persistent_storage_enabled: '{{ .Values.metadata.persistence.enabled }}'
+            num_consumers: 10
+            queue_size: 10_000
+          max_request_body_size: 16_777_216  # 16 MB before compression
+          ## set timeout to 30s due to big requests
+          timeout: 30s
+        sumologic/control_plane:
+          metric_format: prometheus
+          endpoint: ${SUMO_ENDPOINT_CONTROL_PLANE_METRICS_SOURCE}
+          sending_queue:
+            enabled: true
+            persistent_storage_enabled: '{{ .Values.metadata.persistence.enabled }}'
+            num_consumers: 10
+            queue_size: 10_000
+          max_request_body_size: 16_777_216  # 16 MB before compression
+          ## set timeout to 30s due to big requests
+          timeout: 30s
+        sumologic/controller:
+          metric_format: prometheus
+          endpoint: ${SUMO_ENDPOINT_CONTROLLER_METRICS_SOURCE}
+          sending_queue:
+            enabled: true
+            persistent_storage_enabled: '{{ .Values.metadata.persistence.enabled }}'
+            num_consumers: 10
+            queue_size: 10_000
+          max_request_body_size: 16_777_216  # 16 MB before compression
+          ## set timeout to 30s due to big requests
+          timeout: 30s
+        sumologic/kubelet:
+          metric_format: prometheus
+          endpoint: ${SUMO_ENDPOINT_KUBELET_METRICS_SOURCE}
+          sending_queue:
+            enabled: true
+            persistent_storage_enabled: '{{ .Values.metadata.persistence.enabled }}'
+            num_consumers: 10
+            queue_size: 10_000
+          max_request_body_size: 16_777_216  # 16 MB before compression
+          ## set timeout to 30s due to big requests
+          timeout: 30s
+        sumologic/node:
+          metric_format: prometheus
+          endpoint: ${SUMO_ENDPOINT_NODE_METRICS_SOURCE}
+          sending_queue:
+            enabled: true
+            persistent_storage_enabled: '{{ .Values.metadata.persistence.enabled }}'
+            num_consumers: 10
+            queue_size: 10_000
+          max_request_body_size: 16_777_216  # 16 MB before compression
+          ## set timeout to 30s due to big requests
+          timeout: 30s
+        sumologic/scheduler:
+          metric_format: prometheus
+          endpoint: ${SUMO_ENDPOINT_SCHEDULER_METRICS_SOURCE}
+          sending_queue:
+            enabled: true
+            persistent_storage_enabled: '{{ .Values.metadata.persistence.enabled }}'
+            num_consumers: 10
+            queue_size: 10_000
+          max_request_body_size: 16_777_216  # 16 MB before compression
+          ## set timeout to 30s due to big requests
+          timeout: 30s
+        sumologic/state:
+          metric_format: prometheus
+          endpoint: ${SUMO_ENDPOINT_STATE_METRICS_SOURCE}
+          sending_queue:
+            enabled: true
+            persistent_storage_enabled: '{{ .Values.metadata.persistence.enabled }}'
+            num_consumers: 10
+            queue_size: 10_000
+          max_request_body_size: 16_777_216  # 16 MB before compression
+          ## set timeout to 30s due to big requests
+          timeout: 30s
+      processors:
+        ## Configuration for Metrics Transform Processor
+        ## ref: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/release/v0.37.x/processor/metricstransformprocessor
+        metricstransform:
+          transforms:
+            ## rename all prometheus_remote_write_$name metrics to $name
+            include: ^prometheus_remote_write_(.*)$$
+            match_type: regexp
+            action: update
+            new_name: $$1
+        ## NOTE: Drop these for now and and when proper configuration options
+        ## are exposed and source processor is configured then send them
+        ## as headers.
+        ## ref: https://github.com/SumoLogic/sumologic-otel-collector/issues/265
+        resource/delete_source_metadata:
+          attributes:
+            - key: _sourceCategory
+              action: delete
+            - key: _sourceHost
+              action: delete
+            - key: _sourceName
+              action: delete
+        ## Configuration for Resource Processor
+        ## ref: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/release/v0.37.x/processor/resourceprocessor
+        resource:
+          attributes:
+            - key: k8s.namespace.name
+              from_attribute: namespace
+              action: upsert
+            - key: namespace  # remove namespace to avoid duplication when attribute translation is enabled
+              action: delete
+            - key: k8s.pod.name
+              from_attribute: pod
+              action: upsert
+            - key: pod  # remove pod to avoid duplication when attribute translation is enabled
+              action: delete
+            - key: k8s.container.name  # add container in OpenTelemetry convention to unify configuration for Source processor
+              from_attribute: container
+              action: upsert
+            - key: container  # remove container to avoid duplication when attribute translation is enabled
+              action: delete
+            - key: prometheus_service
+              from_attribute: service
+              action: upsert
+            - key: service
+              action: delete
+            - key: _origin  # add "_origin" metadata to metrics to keep the same format as for metrics from Fluentd
+              value: kubernetes
+              action: upsert
+            - key: cluster
+              value: '{{ .Values.sumologic.clusterName | quote }}'
+              action: upsert
+        resource/remove_k8s_pod_pod_name:
+          attributes:
+            - action: delete
+              key: k8s.pod.pod_name
+        ## NOTE: below listed rules could be simplified if routingprocessor
+        ## supports regex matching. At this point we could group route entries
+        ## going to the same set of exporters.
+        routing:
+          ## NOTE: add a feature to routingprocessor to drop the routing
+          ## attribute to prevent it being sent to the exporters.
+          from_attribute: http_listener_v2_path
+          drop_resource_routing_attribute: true
+          attribute_source: resource
+          default_exporters:
+            - sumologic/default
+          table:
+            ## apiserver metrics
+            - value: /prometheus.metrics.apiserver
+              exporters:
+                - sumologic/apiserver
+            ## container metrics
+            - value: /prometheus.metrics.container
+              exporters:
+                - sumologic/kubelet
+            ## control-plane metrics
+            - value: /prometheus.metrics.control-plane.coredns
+              exporters:
+                - sumologic/control_plane
+            - value: /prometheus.metrics.control-plane.kube-etcd
+              exporters:
+                - sumologic/control_plane
+            ## controller metrics
+            - value: /prometheus.metrics.controller-manager
+              exporters:
+                - sumologic/controller
+            ## kubelet metrics
+            - value: /prometheus.metrics.kubelet
+              exporters:
+                - sumologic/kubelet
+            ## node metrics
+            - value: /prometheus.metrics.node
+              exporters:
+                - sumologic/node
+            ## scheduler metrics
+            - value: /prometheus.metrics.scheduler
+              exporters:
+                - sumologic/scheduler
+            ## state metrics
+            - value: /prometheus.metrics.state
+              exporters:
+                - sumologic/state
+
+        ## Configuration for Memory Limiter Processor
+        ## The memory_limiter processor is used to prevent out of memory situations on the collector.
+        ## ref: https://github.com/SumoLogic/opentelemetry-collector/tree/main/processor/memorylimiter
+        memory_limiter:
+          ## check_interval is the time between measurements of memory usage for the
+          ## purposes of avoiding going over the limits. Defaults to zero, so no
+          ## checks will be performed. Values below 1 second are not recommended since
+          ## it can result in unnecessary CPU consumption.
+          check_interval: 5s
+
+          ## Maximum amount of memory, in %, targeted to be allocated by the process heap.
+          limit_percentage: 75
+          ## Spike limit (calculated from available memory). Must be less than limit_percentage.
+          spike_limit_percentage: 20
+
+        sumologic_schema:
+          add_cloud_namespace: false
+
+        ## Configuration for Batch Processor
+        ## The batch processor accepts spans and places them into batches grouped by node and resource
+        ## ref: https://github.com/SumoLogic/opentelemetry-collector/blob/main/processor/batchprocessor
+        batch:
+          ## Number of spans after which a batch will be sent regardless of time
+          send_batch_size: 1_024
+          ## Time duration after which a batch will be sent regardless of size
+          timeout: 1s
+        ## Configuration for Kubernetes Processor
+        ## ref: https://github.com/SumoLogic/sumologic-otel-collector/tree/main/pkg/processor/k8sprocessor
+        k8s_tagger:
+          ## Has to be false to enrich metadata
+          passthrough: false
+          owner_lookup_enabled: true  # To enable fetching additional metadata using `owner` relationship
+          extract:
+            metadata:
+              ## extract the following well-known metadata fields
+              - daemonSetName
+              - deploymentName
+              - nodeName
+              - replicaSetName
+              - serviceName
+              - statefulSetName
+            labels:
+              - tag_name: "pod_labels_%s"
+                key: "*"
+            delimiter: "_"
+          pod_association:
+            - from: build_hostname  # Pods are identified by Pod name and namespace
+        ## Configuration for Source Processor
+        ## Source processor adds Sumo Logic related metadata
+        ## ref: https://github.com/SumoLogic/sumologic-otel-collector/tree/main/pkg/processor/sourceprocessor
+        source:
+          collector: '{{ .Values.sumologic.collectorName | default .Values.sumologic.clusterName | quote }}'
+      service:
+        telemetry:
+          logs:
+            level: '{{ .Values.metadata.metrics.logLevel }}'
+        extensions:
+          - health_check
+          - file_storage
+          - pprof
+        pipelines:
+          metrics:
+            receivers:
+              - telegraf
+            processors:
+              - memory_limiter
+              - metricstransform
+              - resource
+              - k8s_tagger
+              - source
+              - resource/remove_k8s_pod_pod_name
+              - resource/delete_source_metadata
+              - sumologic_schema
+              - batch
+              - routing
+            exporters:
+              - sumologic/default
+              - sumologic/apiserver
+              - sumologic/control_plane
+              - sumologic/controller
+              - sumologic/kubelet
+              - sumologic/node
+              - sumologic/scheduler
+              - sumologic/state
+
+    statefulset:
+      nodeSelector: {}
+      tolerations: []
+      topologySpreadConstraints: []
+      affinity: {}
+      ## Acceptable values for podAntiAffinity:
+      ## soft: specifies preferences that the scheduler will try to enforce but will not guarantee (Default)
+      ## hard: specifies rules that must be met for a pod to be scheduled onto a node
+      podAntiAffinity: "soft"
+      replicaCount: 1
+      resources:
+        limits:
+          memory: 768Mi
+          cpu: 500m
+        requests:
+          memory: 768Mi
+          cpu: 500m
+      ## Option to define priorityClassName to assign a priority class to pods.
+      priorityClassName:
+
+      ## Add custom labels only to metrics sts pods
+      podLabels: {}
+      ## Add custom annotations only to metrics sts pods
+      podAnnotations: {}
+
+      ## Set securityContext for containers running in pods in metrics statefulset.
+      containers:
+        otelcol:
+          securityContext: {}
+          livenessProbe:
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            periodSeconds: 3
+            failureThreshold: 60
+
+      ## Extra Environment Values - allows yaml definitions
+      # extraEnvVars:
+      #   - name: VALUE_FROM_SECRET
+      #     valueFrom:
+      #       secretKeyRef:
+      #         name: secret_name
+      #         key: secret_key
+
+      # extraVolumes:
+      #   - name: es-certs
+      #     secret:
+      #       defaultMode: 420
+      #       secretName: es-certs
+      # extraVolumeMounts:
+      #   - name: es-certs
+      #     mountPath: /certs
+      #     readOnly: true
+
+    ## Option to turn autoscaling on for metrics and specify params for HPA.
+    ## Autoscaling needs metrics-server to access cpu metrics.
+    autoscaling:
+      enabled: false
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 100
+      # targetMemoryUtilizationPercentage: 50
+
+    ## Option to specify PodDisrutionBudgets
+    ## You can specify only one of maxUnavailable and minAvailable in a single PodDisruptionBudget
+    podDisruptionBudget:
+      minAvailable: 2
+    ## To use maxUnavailable, set minAvailable to null and uncomment the below:
+    #   maxUnavailable: 1
+
+  ## Configure logs pipeline.
+  ## This section affects only otelcol provider.
+  logs:
+    enabled: true
+    logLevel: info
+    config:
+      receivers:
+        fluentforward:
+          endpoint: 0.0.0.0:24321
+        otlp:
+          protocols:
+            http:
+              endpoint: 0.0.0.0:4318
+      extensions:
+        health_check: {}
+        ## Configuration for File Storage extension
+        ## ref: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/release/v0.37.x/extension/storage/filestorage
+        file_storage:
+          directory: /var/lib/storage/otc
+          timeout: 10s
+          compaction:
+            on_start: true
+            on_rebound: true
+            # Can't be /tmp yet, see https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/13449
+            directory: /var/lib/storage/otc
+        pprof: {}
+      exporters:
+        sumologic/containers:
+          log_format: json
+          json_logs:
+            add_timestamp: true
+            timestamp_key: timestamp
+          endpoint: ${SUMO_ENDPOINT_DEFAULT_LOGS_SOURCE}
+          source_name: "%{_sourceName}"
+          source_category: "%{_sourceCategory}"
+          source_host: "%{_sourceHost}"
+          ## Configuration for sending queue
+          ## ref: https://github.com/open-telemetry/opentelemetry-collector/tree/release/v0.37.x/exporter/exporterhelper#configuration
+          sending_queue:
+            enabled: true
+            persistent_storage_enabled: '{{ .Values.metadata.persistence.enabled }}'
+            num_consumers: 10
+            queue_size: 10_000
+        sumologic/systemd:
+          log_format: json
+          json_logs:
+            add_timestamp: true
+            timestamp_key: timestamp
+            ## use flatten_body, but OTLP won't require any flattening
+            ## fluent based logs will be all send as record attributes
+            ## otellogs based logs will be all send as body attributes
+            flatten_body: true
+          endpoint: ${SUMO_ENDPOINT_DEFAULT_LOGS_SOURCE}
+          source_name: "%{_sourceName}"
+          source_category: "%{_sourceCategory}"
+          source_host: "%{_sourceHost}"
+          ## Configuration for sending queue
+          ## ref: https://github.com/open-telemetry/opentelemetry-collector/tree/release/v0.37.x/exporter/exporterhelper#configuration
+          sending_queue:
+            enabled: true
+            persistent_storage_enabled: '{{ .Values.metadata.persistence.enabled }}'
+            num_consumers: 10
+            queue_size: 10_000
+
+      processors:
+        ## Common processors
+        attributes/remove_fluent_tag:
+          actions:
+            - action: delete
+              key: fluent.tag
+        ## The memory_limiter processor is used to prevent out of memory situations on the collector.
+        memory_limiter:
+          ## check_interval is the time between measurements of memory usage for the
+          ## purposes of avoiding going over the limits. Defaults to zero, so no
+          ## checks will be performed. Values below 1 second are not recommended since
+          ## it can result in unnecessary CPU consumption.
+          check_interval: 5s
+
+          ## Maximum amount of memory, in %, targeted to be allocated by the process heap.
+          limit_percentage: 75
+          ## Spike limit (calculated from available memory). Must be less than limit_percentage.
+          spike_limit_percentage: 20
+
+        ## The batch processor accepts spans and places them into batches grouped by node and resource
+        batch:
+          ## Number of spans after which a batch will be sent regardless of time
+          send_batch_size: 1_024
+          ## Time duration after which a batch will be sent regardless of size
+          timeout: 1s
+
+        ## Containers related processors
+        filter/include_fluent_tag_containers:
+          logs:
+            include:
+              match_type: regexp
+              record_attributes:
+                - key: fluent.tag
+                  value: containers\..+
+        filter/include_containers:
+          logs:
+            include:
+              match_type: regexp
+              record_attributes:
+                - key: k8s.container.name
+                  value: .+
+        attributes/containers:
+          actions:
+            - action: extract
+              key: fluent.tag
+              pattern: ^containers\.var\.log\.containers\.(?P<k8s_pod_name>[^_]+)_(?P<k8s_namespace>[^_]+)_(?P<k8s_container_name>.+)-(?P<container_id>[a-f0-9]{64})\.log$
+            - action: insert
+              key: k8s.container.id
+              from_attribute: container_id
+            - action: delete
+              key: container_id
+            - action: insert
+              key: k8s.pod.name
+              from_attribute: k8s_pod_name
+            - action: delete
+              key: k8s_pod_name
+            - action: insert
+              key: k8s.namespace.name
+              from_attribute: k8s_namespace
+            - action: delete
+              key: k8s_namespace
+            - action: insert
+              key: k8s.container.name
+              from_attribute: k8s_container_name
+            - action: delete
+              key: k8s_container_name
+        resource/containers_copy_node_to_host:
+          attributes:
+            - action: upsert
+              key: k8s.pod.hostname
+              from_attribute: k8s.node.name
+        resource/drop_annotations:
+          attributes:
+            - pattern: ^pod_annotations_.*
+              action: delete
+        resource/add_cluster:
+          attributes:
+            - key: cluster
+              value: '{{ .Values.sumologic.clusterName | quote }}'
+              action: upsert
+        groupbyattrs/containers:
+          keys:
+            - k8s.container.id
+            - k8s.container.name
+            - k8s.namespace.name
+            - k8s.pod.name
+            - _collector
+        k8s_tagger:
+          ## Has to be false to enrich metadata
+          passthrough: false
+          owner_lookup_enabled: true  # To enable fetching additional metadata using `owner` relationship
+          extract:
+            metadata:
+              ## extract the following well-known metadata fields
+              - containerId
+              - containerName
+              - daemonSetName
+              - deploymentName
+              - hostName
+              - namespace
+              - nodeName
+              - podId
+              - podName
+              - replicaSetName
+              - serviceName
+              - statefulSetName
+            annotations:
+              - tag_name: "pod_annotations_%s"
+                key: "*"
+            namespace_labels:
+              - tag_name: "namespace_labels_%s"
+                key: "*"
+            labels:
+              - tag_name: "pod_labels_%s"
+                key: "*"
+            delimiter: "_"
+          pod_association:
+            - from: build_hostname
+        source/containers:
+          collector: '{{ .Values.sumologic.collectorName | default .Values.sumologic.clusterName | quote }}'
+          source_host: "%{k8s.pod.hostname}"
+          source_name: "%{k8s.namespace.name}.%{k8s.pod.name}.%{k8s.container.name}"
+          source_category: "%{k8s.namespace.name}/%{k8s.pod.pod_name}"
+          source_category_prefix: '{{ .Values.fluentd.logs.containers.sourceCategoryPrefix | quote }}'
+          source_category_replace_dash: '{{ .Values.fluentd.logs.containers.sourceCategoryReplaceDash | quote }}'
+          exclude:
+            k8s.namespace.name: '{{ include "fluentd.excludeNamespaces" . }}'
+            k8s.pod.name: '{{ .Values.fluentd.logs.containers.excludePodRegex | quote }}'
+            k8s.container.name: '{{ .Values.fluentd.logs.containers.excludeContainerRegex | quote }}'
+            k8s.pod.hostname: '{{ .Values.fluentd.logs.containers.excludeHostRegex | quote }}'
+          annotation_prefix: "pod_annotations_"
+          pod_template_hash_key: "pod_labels_pod-template-hash"
+          pod_name_key: "k8s.pod.pod_name"
+          pod_key: "k8s.pod.name"
+          container_annotations:
+            enabled: '{{ .Values.fluentd.logs.containers.perContainerAnnotationsEnabled }}'
+            prefixes: '{{ toJson .Values.fluentd.logs.containers.perContainerAnnotationPrefixes }}'
+
+        ## Systemd related processors
+        filter/include_fluent_tag_host:
+          logs:
+            include:
+              match_type: regexp
+              record_attributes:
+                - key: fluent.tag
+                  value: host\..+
+        attributes/extract_systemd_source_fields:
+          actions:
+            - action: extract
+              key: fluent.tag
+              pattern: ^host\.(?P<_sourceName>[a-zA-z0-9]+)\..+$
+            - action: insert
+              from_attribute: _HOSTNAME
+              key: _sourceHost
+        filter/include_systemd:
+          logs:
+            include:
+              match_type: regexp
+              record_attributes:
+                - key: _SYSTEMD_UNIT
+                  value: .+
+        filter/exclude_kubelet:
+          logs:
+            exclude:
+              match_type: strict
+              record_attributes:
+                - key: _SYSTEMD_UNIT
+                  value: kubelet.service
+        filter/exclude_systemd_syslog:
+          logs:
+            exclude:
+              match_type: regexp
+              record_attributes:
+                - key: SYSLOG_FACILITY
+                  value: '{{ .Values.fluentd.logs.systemd.excludeFacilityRegex | default "$^" | quote }}'
+        filter/exclude_systemd_hostname:
+          logs:
+            exclude:
+              match_type: regexp
+              record_attributes:
+                - key: _HOSTNAME
+                  value: '{{ .Values.fluentd.logs.systemd.excludeHostRegex | default "$^" | quote }}'
+        filter/exclude_systemd_priority:
+          logs:
+            exclude:
+              match_type: regexp
+              record_attributes:
+                - key: PRIORITY
+                  value: '{{ .Values.fluentd.logs.systemd.excludePriorityRegex | default "$^" | quote }}'
+        filter/exclude_systemd_unit:
+          logs:
+            exclude:
+              match_type: regexp
+              record_attributes:
+                - key: _SYSTEMD_UNIT
+                  value: '{{ .Values.fluentd.logs.systemd.excludeUnitRegex | default "$^" | quote }}'
+        filter/exclude_kubelet_syslog:
+          logs:
+            exclude:
+              match_type: regexp
+              record_attributes:
+                - key: SYSLOG_FACILITY
+                  value: '{{ .Values.fluentd.logs.kubelet.excludeFacilityRegex | default "$^" | quote }}'
+        filter/exclude_kubelet_hostname:
+          logs:
+            exclude:
+              match_type: regexp
+              record_attributes:
+                - key: _HOSTNAME
+                  value: '{{ .Values.fluentd.logs.kubelet.excludeHostRegex | default "$^" | quote }}'
+        filter/exclude_kubelet_priority:
+          logs:
+            exclude:
+              match_type: regexp
+              record_attributes:
+                - key: PRIORITY
+                  value: '{{ .Values.fluentd.logs.kubelet.excludePriorityRegex | default "$^" | quote }}'
+        filter/exclude_kubelet_unit:
+          logs:
+            exclude:
+              match_type: regexp
+              record_attributes:
+                - key: _SYSTEMD_UNIT
+                  value: '{{ .Values.fluentd.logs.kubelet.excludeUnitRegex | default "$^" | quote }}'
+
+        groupbyattrs/systemd:
+          keys:
+            - _sourceName
+            - _sourceHost
+            - _collector
+        source/systemd:
+          collector: '{{ .Values.sumologic.collectorName | default .Values.sumologic.clusterName | quote }}'
+          source_host: "%{_sourceHost}"
+          source_name: "%{_sourceName}"
+          source_category: '{{ .Values.fluentd.logs.systemd.sourceCategory | quote }}'
+          source_category_prefix: '{{ .Values.fluentd.logs.systemd.sourceCategoryPrefix | quote }}'
+          source_category_replace_dash: '{{ .Values.fluentd.logs.systemd.sourceCategoryReplaceDash | quote }}'
+        ## Remove all attributes, so body won't by nested by SumoLogic receiver in case of using otlp format
+        transform/remove_attributes:
+          logs:
+            queries:
+              - limit(attributes, 0)
+
+        ## kubelet related processors
+        filter/include_kubelet:
+          logs:
+            include:
+              match_type: strict
+              record_attributes:
+                - key: _SYSTEMD_UNIT
+                  value: kubelet.service
+        source/kubelet:
+          collector: '{{ .Values.sumologic.collectorName | default .Values.sumologic.clusterName | quote }}'
+          source_host: "%{_sourceHost}"
+          source_name: '{{ .Values.fluentd.logs.kubelet.sourceName | quote }}'
+          source_category: '{{ .Values.fluentd.logs.kubelet.sourceCategory | quote }}'
+          source_category_prefix: '{{ .Values.fluentd.logs.kubelet.sourceCategoryPrefix | quote }}'
+          source_category_replace_dash: '{{ .Values.fluentd.logs.kubelet.sourceCategoryReplaceDash | quote }}'
+
+        sumologic_schema:
+          add_cloud_namespace: false
+
+      service:
+        telemetry:
+          logs:
+            level: '{{ .Values.metadata.logs.logLevel }}'
+        extensions:
+          - health_check
+          - file_storage
+          - pprof
+        pipelines:
+          logs/fluent/containers:
+            receivers:
+              - fluentforward
+            processors:
+              - memory_limiter
+              - filter/include_fluent_tag_containers
+              - attributes/containers
+              - groupbyattrs/containers
+              - k8s_tagger
+              - resource/add_cluster
+              - source/containers
+              - resource/drop_annotations
+              - attributes/remove_fluent_tag
+              - resource/containers_copy_node_to_host
+              - sumologic_schema
+              - batch
+            exporters:
+              - sumologic/containers
+          ## Uncomment this only if you're enabling the Otelcol Log Collector via otellogs.enabled
+          ## This is commented due to k8s_tagger memory footprint
+          ## This is the same pipeline like for logs/fluent/containers with the following modifications:
+          ## - filter/include_fluent_tag_containers and attributes/remove_fluent_tag are being removed
+          ##   as only containers log are being provided to otlp receiver
+          ## - attributes/containers functionality is being replaced by otellogs operators
+          # logs/otlp/containers:
+          #   receivers:
+          #     - otlp
+          #   processors:
+          #     - memory_limiter
+          #     - filter/include_containers
+          #     - groupbyattrs/containers
+          #     - k8s_tagger
+          #     - resource/add_cluster
+          #     - source/containers
+          #     - resource/drop_annotations
+          #     - resource/containers_copy_node_to_host
+          #     - sumologic_schema
+          #     - batch
+          #   exporters:
+          #     - sumologic/containers
+          logs/fluent/systemd:
+            receivers:
+              - fluentforward
+            processors:
+              - memory_limiter
+              - filter/include_fluent_tag_host
+              - filter/include_systemd
+              - filter/exclude_kubelet
+              - filter/exclude_systemd_syslog
+              - filter/exclude_systemd_hostname
+              - filter/exclude_systemd_priority
+              - filter/exclude_systemd_unit
+              - attributes/extract_systemd_source_fields
+              - attributes/remove_fluent_tag
+              - groupbyattrs/systemd
+              - resource/add_cluster
+              - source/systemd
+              - batch
+            exporters:
+              - sumologic/systemd
+          logs/fluent/kubelet:
+            receivers:
+              - fluentforward
+            processors:
+              - memory_limiter
+              - filter/include_fluent_tag_host
+              - filter/include_kubelet
+              - filter/exclude_kubelet_syslog
+              - filter/exclude_kubelet_hostname
+              - filter/exclude_kubelet_priority
+              - filter/exclude_kubelet_unit
+              - attributes/extract_systemd_source_fields
+              - attributes/remove_fluent_tag
+              - groupbyattrs/systemd
+              - resource/add_cluster
+              - source/kubelet
+              - batch
+            exporters:
+              - sumologic/systemd
+          ## This is the same pipeline like logs/fluent/systemd, but with the following changes:
+          ## - otlp receiver instead of fluentforward
+          ## - added transform/remove_attributes processor
+          logs/otlp/systemd:
+            receivers:
+              - otlp
+            processors:
+              - memory_limiter
+              - filter/include_fluent_tag_host
+              - filter/include_systemd
+              - filter/exclude_kubelet
+              - filter/exclude_systemd_syslog
+              - filter/exclude_systemd_hostname
+              - filter/exclude_systemd_priority
+              - filter/exclude_systemd_unit
+              - attributes/extract_systemd_source_fields
+              - attributes/remove_fluent_tag
+              - groupbyattrs/systemd
+              - resource/add_cluster
+              - source/systemd
+              - transform/remove_attributes
+              - batch
+            exporters:
+              - sumologic/systemd
+          ## This is the same pipeline like logs/fluent/kubelet, but with the following changes:
+          ## - otlp receiver instead of fluentforward
+          ## - added transform/remove_attributes processor
+          logs/otlp/kubelet:
+            receivers:
+              - otlp
+            processors:
+              - memory_limiter
+              - filter/include_fluent_tag_host
+              - filter/include_kubelet
+              - filter/exclude_kubelet_syslog
+              - filter/exclude_kubelet_hostname
+              - filter/exclude_kubelet_priority
+              - filter/exclude_kubelet_unit
+              - attributes/extract_systemd_source_fields
+              - attributes/remove_fluent_tag
+              - groupbyattrs/systemd
+              - resource/add_cluster
+              - source/kubelet
+              - transform/remove_attributes
+              - batch
+            exporters:
+              - sumologic/systemd
+    statefulset:
+      nodeSelector: {}
+      tolerations: []
+      topologySpreadConstraints: []
+      affinity: {}
+      ## Acceptable values for podAntiAffinity:
+      ## soft: specifies preferences that the scheduler will try to enforce but will not guarantee (Default)
+      ## hard: specifies rules that must be met for a pod to be scheduled onto a node
+      podAntiAffinity: "soft"
+      replicaCount: 1
+      resources:
+        limits:
+          memory: 768Mi
+          cpu: 500m
+        requests:
+          memory: 768Mi
+          cpu: 500m
+      ## Option to define priorityClassName to assign a priority class to pods.
+      priorityClassName:
+
+      ## Add custom labels only to logs sts pods
+      podLabels: {}
+      ## Add custom annotations only to logs sts pods
+      podAnnotations: {}
+
+      ## Set securityContext for containers running in pods in logs statefulset.
+      containers:
+        otelcol:
+          securityContext: {}
+          livenessProbe:
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            periodSeconds: 3
+            failureThreshold: 60
+
+      ## Extra Environment Values - allows yaml definitions
+      # extraEnvVars:
+      #   - name: VALUE_FROM_SECRET
+      #     valueFrom:
+      #       secretKeyRef:
+      #         name: secret_name
+      #         key: secret_key
+
+      # extraVolumes:
+      #   - name: es-certs
+      #     secret:
+      #       defaultMode: 420
+      #       secretName: es-certs
+      # extraVolumeMounts:
+      #   - name: es-certs
+      #     mountPath: /certs
+      #     readOnly: true
+
+    ## Option to turn autoscaling on for logs and specify params for HPA.
+    ## Autoscaling needs metrics-server to access cpu metrics.
+    autoscaling:
+      enabled: false
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 100
+      # targetMemoryUtilizationPercentage: 50
+
+    ## Option to specify PodDisrutionBudgets
+    ## You can specify only one of maxUnavailable and minAvailable in a single PodDisruptionBudget
+    podDisruptionBudget:
+      minAvailable: 2
+      ## To use maxUnavailable, set minAvailable to null and uncomment the below:
+      # maxUnavailable: 1
+
+## Configure optional OpenTelemetry Gateway in Agent mode
+## ref: docs/opentelemetry_collector.md#load-balancing-using-the-gateway
+otelgateway:
+  enabled: true
+  deployment:
+    replicas: 1
+    nodeSelector: {}
+    tolerations: []
+    resources:
+      limits:
+        memory: 196Mi
+        cpu: 50m
+      requests:
+        memory: 196Mi
+        cpu: 50m
+    ## Add custom labels only to otelagent daemonset.
+    podLabels: {}
+    ## Add custom annotations only to otelagent daemonset.
+    podAnnotations: {}
+    image:
+      repository: "public.ecr.aws/sumologic/sumologic-otel-collector"
+      tag: "0.54.0-sumo-0"
+      pullPolicy: IfNotPresent
+    livenessProbe:
+      periodSeconds: 15
+      timeoutSeconds: 10
+      failureThreshold: 3
+    readinessProbe:
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    startupProbe:
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 60
+
+    ## Extra Environment Values - allows yaml definitions
+    # extraEnvVars:
+    #   - name: VALUE_FROM_SECRET
+    #     valueFrom:
+    #       secretKeyRef:
+    #         name: secret_name
+    #         key: secret_key
+
+    # extraVolumes:
+    #   - name: es-certs
+    #     secret:
+    #       defaultMode: 420
+    #       secretName: es-certs
+    # extraVolumeMounts:
+    #   - name: es-certs
+    #     mountPath: /certs
+    #     readOnly: true
+
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: "0.0.0.0:4317"
+          http:
+            endpoint: "0.0.0.0:4318"
+      otlp/deprecated:
+        protocols:
+          http:
+            endpoint: "0.0.0.0:55681"
+    processors:
+      ## The memory_limiter processor is used to prevent out of memory situations on the collector.
+      memory_limiter:
+        ## check_interval is the time between measurements of memory usage for the
+        ## purposes of avoiding going over the limits. Defaults to zero, so no
+        ## checks will be performed. Values below 1 second are not recommended since
+        ## it can result in unnecessary CPU consumption.
+        check_interval: 5s
+
+        ## Maximum amount of memory, in %, targeted to be allocated by the process heap.
+        limit_percentage: 75
+        ## Spike limit (calculated from available memory). Must be less than limit_percentage.
+        spike_limit_percentage: 20
+
+      ## The batch processor accepts spans and places them into batches grouped by node and resource
+      batch:
+        ## Number of spans after which a batch will be sent regardless of time
+        send_batch_size: 256
+        ## Time duration after which a batch will be sent regardless of size
+        timeout: 5s
+    extensions:
+      health_check: {}
+      memory_ballast:
+        ## Memory Ballast size should be max 1/3 to 1/2 of memory.
+        size_mib: 250
+      pprof: {}
+    exporters:
+      loadbalancing:
+        protocol:
+          otlp:
+            timeout: 10s
+            tls:
+              insecure: true
+        resolver:
+          dns:
+            hostname: '{{ include "traces.otelgateway.exporter.loadbalancing.endpoint" . }}'
+            port: 4317
+      otlp:
+        endpoint: '{{ (printf "%s:4317" (include "traces.otelgateway.exporter.endpoint" .)) }}'
+        tls:
+          ## This disables TLS when communicating with the gateway (within the same cluster)
+          insecure: true
+    service:
+      extensions: [health_check, memory_ballast, pprof]
+      pipelines:
+        traces:
+          receivers: [jaeger, opencensus, otlp, otlp/deprecated, zipkin]
+          processors: [memory_limiter, batch]
+          exporters: [loadbalancing]
+        metrics:
+          receivers: [otlp, otlp/deprecated]
+          processors: [memory_limiter, batch]
+          exporters: [otlp]
+
+otellogs:
+
+  ## Metrics from Collector
+  metrics:
+    enabled: true
+
+  ## Add custom labels to otelcol svc
+  serviceLabels: {}
+
+  ## Configure image for Opentelemetry Collector
+  image:
+    repository: "public.ecr.aws/sumologic/sumologic-otel-collector"
+    tag: "0.54.0-sumo-0"
+    pullPolicy: IfNotPresent
+
+  logLevel: info
+
+  config:
+    override: {}
+
+  sidecar:
+    ## Set securityContext for containers running in pods in log collector daemonset
+    securityContext:
+    ## In order to reliably read logs from mounted node logging paths, we need to run as root
+      fsGroup: 0
+      runAsUser: 0
+      runAsGroup: 0
+
+    ## Add custom labels to all otelcol daemonset pods
+    podLabels: {}
+
+    ## Add custom annotations to all otelcol daemonset pods
+    podAnnotations: {}
+
+    resources:
+      limits:
+        memory: 1Gi
+        cpu: 1000m
+      requests:
+        memory: 32Mi
+        cpu: 100m
+    ## Option to define priorityClassName to assign a priority class to pods.
+    ## If not set then temaplates/priorityclass.yaml is used.
+    priorityClassName:
+
+    ## Set securityContext for containers running in pods in log collector daemonset
+    containers:
+      otelcol:
+        securityContext: {}
+
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+
+    ## Extra Environment Values - allows yaml definitions
+    # extraEnvVars:
+    #   - name: VALUE_FROM_SECRET
+    #     valueFrom:
+    #       secretKeyRef:
+    #         name: secret_name
+    #         key: secret_key
+
+    # extraVolumes:
+    #   - name: es-certs
+    #     secret:
+    #       defaultMode: 420
+    #       secretName: es-certs
+    # extraVolumeMounts:
+    #   - name: es-certs
+    #     mountPath: /certs
+    #     readOnly: true
+
+fluentd:
+  image:
+    repository: public.ecr.aws/sumologic/kubernetes-fluentd
+    tag: 1.14.4-sumo-1
+    pullPolicy: IfNotPresent
+
+  ## Specifies whether a PodSecurityPolicy should be created
+  podSecurityPolicy:
+    create: false
+  additionalPlugins: []
+
+  ## Sets the fluentd log level. The default log level, if not specified, is info.
+  ## Sumo will only ingest the error log level and some specific warnings, the info logs can be seen in kubectl logs.
+  ## ref: https://docs.fluentd.org/deployment/logging
+  logLevel: "info"
+  ## to ingest all fluentd logs, turn the logLevelFilter to false
+  logLevelFilter: true
+
+  ## Verify SumoLogic HTTPS certificates
+  verifySsl: true
+  ## Proxy URI for sumologic output plugin
+  proxyUri: ""
+
+  ## Enable and set compression encoding for fluentd output plugin
+  compression:
+    enabled: true
+    encoding: gzip
+
+  securityContext:
+    ## The group ID of all processes in the statefulset containers. By default this needs to be fluent(999).
+    fsGroup: 999
+
+  ## Add custom labels to all fluentd sts pods(logs, metrics, events)
+  podLabels: {}
+
+  ## Add custom annotations to all fluentd sts pods(logs, metrics, events)
+  podAnnotations: {}
+
+  ## Add custom labels to all fluentd svc (logs, metrics, events)
+  serviceLabels: {}
+
+  ## Add custom labels to all fluentd statefulset PVC (logs, metrics, events)
+  pvcLabels: {}
+
+  ## Persist data to a persistent volume; When enabled, fluentd uses the file buffer instead of memory buffer.
+  persistence:
+    ## After changing this value please follow steps described in:
+    ## https://github.com/SumoLogic/sumologic-kubernetes-collection/blob/main/deploy/docs/FluentdPersistence.md
+    enabled: true
+
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+    ##   GKE, Azure & OpenStack)
+    ##
+    # storageClass: "-"
+    # annotations: {}
+    accessMode: ReadWriteOnce
+    size: 10Gi
+
+  buffer:
+    ## Option to specify the Fluentd buffer as file/memory.
+    ## If fluentd.persistence.enabled is true, this will be ignored.
+    type: "memory"
+
+    ## How frequently to push logs to SumoLogic
+    ## ref: https://github.com/SumoLogic/fluentd-kubernetes-sumologic#options
+    flushInterval: "5s"
+    ## Increase number of http threads to Sumo. May be required in heavy logging/high DPM clusters
+    numThreads: 8
+    chunkLimitSize: "1m"
+    queueChunkLimitSize: 128
+    totalLimitSize: "128m"
+    retryMaxInterval: "10m"
+    retryForever: true
+    compress: gzip
+
+    ## File paths to buffer to, if Fluentd buffer type is specified as file above.
+    ## Each sumologic output plugin buffers to its own unique file.
+    filePaths:
+      logs:
+        containers: /fluentd/buffer/logs.containers
+        kubelet: /fluentd/buffer/logs.kubelet
+        systemd: /fluentd/buffer/logs.systemd
+        default: /fluentd/buffer/logs.default
+      metrics:
+        apiserver: /fluentd/buffer/metrics.apiserver
+        kubelet: /fluentd/buffer/metrics.kubelet
+        container: /fluentd/buffer/metrics.container
+        controller: /fluentd/buffer/metrics.controller
+        scheduler: /fluentd/buffer/metrics.scheduler
+        state: /fluentd/buffer/metrics.state
+        node: /fluentd/buffer/metrics.node
+        control-plane: /fluentd/buffer/metrics.control_plane
+        default: /fluentd/buffer/metrics.default
+      events: /fluentd/buffer/events
+      traces: /fluentd/buffer/traces
+
+    ## Additional config for buffer settings
+    extraConf: |-
+  ## configuration of fluentd monitoring metrics
+  ## input -> fluentd_input_status_num_records_total (~5% DPM increase for empty cluster)
+  ## output -> fluentd_output_status_num_records_total (~25% DPM increase for empty cluster)
+  monitoring:
+    input: false
+    output: false
+
+  metadata:
+    ## Option to control capturing of annotations by metadata filter plugin.
+    annotation_match:
+      - 'sumologic\.com.*'
+    ## Option to control the enabling of metadata filter plugin cache_size.
+    ## ref: https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter#configuration
+    cacheSize: "10000"
+    ## Option to control the enabling of metadata filter plugin cache_ttl (in seconds).
+    ## ref: https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter#configuration
+    cacheTtl: "7200"
+    ## Option to control the interval at which metadata cache is asynchronously refreshed (in seconds).
+    cacheRefresh: "3600"
+    ## Option to control the variation in seconds by which the cacheRefresh option is changed for each pod separately.
+    ## For example, if cache refresh is 1 hour and variation is 15 minutes, then actual cache refresh interval
+    ## will be a random value between 45 minutes and 1 hour 15 minutes, different for each pod. This helps spread
+    ## the load on API server that the cache refresh induces. Setting this to 0 disables cache refresh variation.
+    cacheRefreshVariation: "900"
+    # Option to control the delay with which cache refresh calls hit the api server.
+    # For example, if 0 then all metadata enrichment happen immediately. Setting this to a non-zero values ensures the
+    # traffic to api server is much distributed.
+    # Disclaimer: Not recommended for use, if your api server read latency is > 1s
+    cacheRefreshApiserverRequestDelay: "0"
+    ## Option to give plugin specific log level
+    pluginLogLevel: "error"
+    ## Option to specify K8s API versions
+    coreApiVersions:
+      - v1
+    ## Option to specify K8s API groups
+    apiGroups:
+      - apps/v1
+    ## Option to control the enrichment of logs and metrics with pod owner metadata like `daemonset`, `deployment`,
+    ## `replicaset`, `statefulset`.
+    addOwners: true
+    ## Option to control the enrichment of logs and metrics with `service` metadata.
+    addService: true
+    ## Option to specify custom API server URL instead of the default,
+    ## that is taken from KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT environment variables.
+    ## Example: "https://kubernetes.default.svc:443".
+    apiServerUrl: ""
+
+  logs:
+    enabled: true
+    statefulset:
+      nodeSelector: {}
+      tolerations: []
+      affinity: {}
+      ## Acceptable values for podAntiAffinity:
+      ## soft: specifies preferences that the scheduler will try to enforce but will not guarantee (Default)
+      ## hard: specifies rules that must be met for a pod to be scheduled onto a node
+      podAntiAffinity: "soft"
+      replicaCount: 3
+      resources:
+        limits:
+          memory: 1Gi
+          cpu: 1000m
+        requests:
+          memory: 768Mi
+          cpu: 500m
+      ## Option to define priorityClassName to assign a priority class to pods.
+      priorityClassName:
+
+      ## Add custom labels only to logs fluentd sts pods
+      podLabels: {}
+      ## Add custom annotations only to logs fluentd sts pods
+      podAnnotations: {}
+
+      ## Set securityContext for containers running in pods in logs statefulset.
+      containers:
+        fluentd:
+          securityContext: {}
+
+      # This supports either a structured array or a templatable string
+      initContainers: []
+
+      # Array mode
+      # initContainers:
+      #   - name: do-something
+      #     image: bitnami/kubectl:1.22
+      #     command: ['kubectl', 'version']
+
+      # String mode
+      # initContainers: |-
+      #   - name: do-something
+      #     image: bitnami/kubectl:{{ .Capabilities.KubeVersion.Major }}.{{ trimSuffix "+" .Capabilities.KubeVersion.Minor }}
+      #     command: ['kubectl', 'version']
+
+    ## Option to turn autoscaling on for fluentd and specify params for HPA.
+    ## Autoscaling needs metrics-server to access cpu metrics.
+    autoscaling:
+      enabled: false
+      minReplicas: 3
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 50
+      # targetMemoryUtilizationPercentage: 50
+
+    ## Option to specify PodDisrutionBudgets
+    ## You can specify only one of maxUnavailable and minAvailable in a single PodDisruptionBudget
+    podDisruptionBudget:
+      minAvailable: 2
+    ## To use maxUnavailable, set minAvailable to null and uncomment the below:
+    #   maxUnavailable: 1
+
+    rawConfig: |-
+      @include common.conf
+      @include logs.conf
+    ## Configuration for the forward input plugin that receives logs from FluentBit
+    ## ref: https://docs.fluentd.org/input/forward
+    input:
+      ## Use to specify additional config, including transport or security options.
+      forwardExtraConf: |-
+    ## Configuration for sumologic output plugin
+    ## See below links for full reference:
+    ## https://github.com/SumoLogic/fluentd-output-sumologic
+    ## https://github.com/SumoLogic/sumologic-kubernetes-collection/blob/main/deploy/helm/sumologic/conf/logs/fluentd/logs.output.conf
+    output:
+      ## Format to post logs into Sumo: fields, json, json_merge, or text.
+      ## NOTE: for logs metadata, fields is required.
+      logFormat: fields
+      ## Option to control adding timestamp to logs.
+      addTimestamp: true
+      ## Field name when add_timestamp is on.
+      timestampKey: "timestamp"
+      ## Option to give plugin specific log level
+      pluginLogLevel: "error"
+      ## Additional config parameters for sumologic output plugin
+      extraConf: |-
+    ## Additional config for custom log pipelines
+    ## ref: TODO: documentation for custom logs pipelines
+    extraLogs: |-
+    ## Container log configuration
+    containers:
+      ## To override the entire contents of logs.source.containers.conf file. Leave empty for the default pipeline
+      overrideRawConfig: |-
+      outputConf: |-
+        @include logs.output.conf
+      ## Override output section for container logs. Leave empty for the default output section
+      overrideOutputConf: |-
+      ## Set the _sourceName metadata field in Sumo Logic.
+      sourceName: "%{namespace}.%{pod}.%{container}"
+      ## Set the _sourceCategory metadata field in Sumo Logic.
+      sourceCategory: "%{namespace}/%{pod_name}"
+      ## Set the prefix, for _sourceCategory metadata.
+      sourceCategoryPrefix: "kubernetes/"
+      ## Used to replace - with another character.
+      sourceCategoryReplaceDash: "/"
+
+      ## A regular expression for containers.
+      ## Matching containers will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludeContainerRegex: ""
+      ## A regular expression for hosts.
+      ## Matching hosts will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludeHostRegex: ""
+      ## A regular expression for namespaces.
+      ## Matching namespaces will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludeNamespaceRegex: ""
+      ## A regular expression for pods.
+      ## Matching pods will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludePodRegex: ""
+
+      ## Defines whether container-level pod annotations are enabled.
+      ## Setting this to `true` might slightly affect Fluentd performance.
+      ## See below link for full reference:
+      ## https://github.com/SumoLogic/sumologic-kubernetes-fluentd/tree/v1.12.1-sumo-2/fluent-plugin-kubernetes-sumologic#container-level-pod-annotations
+      perContainerAnnotationsEnabled: false
+      ## Defines the list of prefixes of container-level pod annotations.
+      ## See below link for full reference:
+      ## https://github.com/SumoLogic/sumologic-kubernetes-fluentd/tree/v1.12.1-sumo-2/fluent-plugin-kubernetes-sumologic#container-level-pod-annotations
+      perContainerAnnotationPrefixes: []
+
+      ## ref: https://github.com/fabric8io/fluent-plugin-kubernetes_metadata_filter#configuration
+      k8sMetadataFilter:
+        ## Option to control the enabling of metadata filter plugin watch.
+        watch: "true"
+        ## path to CA file for Kubernetes server certificate validation
+        caFile: ""
+        ## Validate SSL certificates
+        verifySsl: true
+        ## Path to a client cert file to authenticate to the API server
+        clientCert: ""
+        ## Path to a client key file to authenticate to the API server
+        clientKey: ""
+        ## Path to a file containing the bearer token to use for authentication
+        bearerTokenFile: ""
+
+      ## To use additional filter plugins
+      extraFilterPluginConf: |-
+      ## To use additional output plugins
+      extraOutputPluginConf: |-
+      ## To enable stiching multiline logs in fluentd when fluent-bit Multiline feature is On
+      multiline:
+        enabled: true
+
+    ## Kubelet log configuration
+    kubelet:
+      enabled: true
+      ## To use additional filter plugins
+      extraFilterPluginConf: |-
+      ## To use additional output plugins
+      extraOutputPluginConf: |-
+      outputConf: |-
+        @include logs.output.conf
+      ## Override output section for kubelet logs. Leave empty for the default output section.
+      overrideOutputConf: |-
+      ## Set the _sourceName metadata field in Sumo Logic.
+      sourceName: "k8s_kubelet"
+      ## Set the _sourceCategory metadata field in Sumo Logic.
+      sourceCategory: "kubelet"
+      ## Set the prefix, for _sourceCategory metadata.
+      sourceCategoryPrefix: "kubernetes/"
+      ## Used to replace - with another character.
+      sourceCategoryReplaceDash: "/"
+
+      ## A regular expression for facility.
+      ## Matching facility will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludeFacilityRegex: ""
+      ## A regular expression for hosts.
+      ## Matching hosts will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludeHostRegex: ""
+      ## A regular expression for priority.
+      ## Matching priority will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludePriorityRegex: ""
+      ## A regular expression for unit.
+      ## Matching unit will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludeUnitRegex: ""
+
+    ## Systemd log configuration
+    systemd:
+      enabled: true
+      ## To use additional filter plugins
+      extraFilterPluginConf: |-
+      ## To use additional output plugins
+      extraOutputPluginConf: |-
+      outputConf: |-
+        @include logs.output.conf
+      ## Override output section for systemd logs. Leave empty for the default output section.
+      overrideOutputConf: |-
+      ## Set the _sourceName metadata field in Sumo Logic.
+      sourceName: "k8s_systemd"
+      ## Set the _sourceCategory metadata field in Sumo Logic.
+      sourceCategory: "system"
+      ## Set the prefix, for _sourceCategory metadata.
+      sourceCategoryPrefix: "kubernetes/"
+      ## Used to replace - with another character.
+      sourceCategoryReplaceDash: "/"
+
+      ## A regular expression for facility.
+      ## Matching facility will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludeFacilityRegex: ""
+      ## A regular expression for hosts.
+      ## Matching hosts will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludeHostRegex: ""
+      ## A regular expression for priority.
+      ## Matching priority will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludePriorityRegex: ""
+      ## A regular expression for unit.
+      ## Matching unit will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludeUnitRegex: ""
+
+    ## Default log configuration (catch-all)
+    default:
+      ## To use additional filter plugins
+      extraFilterPluginConf: |-
+      ## To use additional output plugins
+      extraOutputPluginConf: |-
+      outputConf: |-
+        @include logs.output.conf
+      ## Override output section for untagged logs. Leave empty for the default output section.
+      overrideOutputConf: |-
+      ## Set the _sourceName metadata field in Sumo Logic.
+      sourceName: "k8s_default"
+      ## Set the _sourceCategory metadata field in Sumo Logic.
+      sourceCategory: "default"
+      ## Set the prefix, for _sourceCategory metadata.
+      sourceCategoryPrefix: "kubernetes/"
+      ## Used to replace - with another character.
+      sourceCategoryReplaceDash: "/"
+
+      ## A regular expression for facility.
+      ## Matching facility will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludeFacilityRegex: ""
+      ## A regular expression for hosts.
+      ## Matching hosts will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludeHostRegex: ""
+      ## A regular expression for priority.
+      ## Matching priority will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludePriorityRegex: ""
+      ## A regular expression for unit.
+      ## Matching unit will be excluded from Sumo. The logs will still be sent to FluentD.
+      excludeUnitRegex: ""
+
+    ## Extra Environment Values - allows yaml definitions
+    # extraEnvVars:
+    #   - name: VALUE_FROM_SECRET
+    #     valueFrom:
+    #       secretKeyRef:
+    #         name: secret_name
+    #         key: secret_key
+
+    # extraVolumes:
+    #   - name: es-certs
+    #     secret:
+    #       defaultMode: 420
+    #       secretName: es-certs
+    # extraVolumeMounts:
+    #   - name: es-certs
+    #     mountPath: /certs
+    #     readOnly: true

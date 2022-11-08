@@ -1,0 +1,13 @@
+apiVersion: v2
+name: sumologic
+version: 1.0.0
+appVersion: 1.0.0
+description: A Helm chart for collecting EKS-fargate logs, metrics, traces and events into Sumo Logic.
+type: application
+keywords:
+  - monitoring
+  - logging
+icon: https://raw.githubusercontent.com/SumoLogic/sumologic-kubernetes-collection/main/images/sumo_logic_logo.png
+home: https://github.com/rnishtala-sumo/otel-eks-fargate
+sources:
+  - https://github.com/rnishtala-sumo/otel-eks-fargate

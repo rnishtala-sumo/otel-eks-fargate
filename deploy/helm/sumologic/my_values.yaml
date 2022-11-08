@@ -1,0 +1,14 @@
+sumologic:
+  collector:
+    sources:
+      metrics:
+        dev_source:
+          name: dev_source
+  logs:
+    collector:
+      otelcol:
+        enabled: true
+fluent-bit:
+  enabled: false
+otelgateway:
+  enabled: false
